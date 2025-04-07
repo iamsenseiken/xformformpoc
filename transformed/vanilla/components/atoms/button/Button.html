@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Button Component</title>
+  <style>
+    .atom-button {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .atom-button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <button id="button" class="atom-button">Click me!</button>
+
+  <script>
+    const Button = ({ label, enabled = true, onClick, ...props }) => {
+      const button = document.getElementById('button');
+      button.innerText = label;
+      button.disabled = !enabled;
+      button.onclick = enabled ? onClick : undefined;
+      Object.keys(props).forEach(key => {
+        button.setAttribute(key, props[key]);
+      });
+    };
+
+    // Example usage
+    Button({
+      label: 'Click me!',
+      enabled: true,
+      onClick: () => {
+        alert('Button clicked!');
+      },
+      id: 'custom-button'
+    });
+  </script>
+</body>
+</html>

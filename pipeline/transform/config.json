@@ -1,0 +1,22 @@
+{
+  "transformations": {
+    "react": {
+      "name": "react",
+      "prompt": "You are a coding assistant.\nTransform the following vanilla JSX code into fully equivalent modern React TypeScript (TSX) code:\n---\n{{fileContent}}\n---",
+      "destinationExtension": "tsx",
+      "outputFolder": "transformed/react/components"
+    },
+    "vue2": {
+      "name": "vue2",
+      "prompt": "You are a coding assistant.\nTransform the following vanilla JSX code into fully equivalent Vue 2 Single File Component:\n---\n{{fileContent}}\n---\nMake sure to properly convert props to Vue props, events, and use appropriate Vue lifecycle methods.",
+      "destinationExtension": "vue",
+      "outputFolder": "transformed/vue/components"
+    },
+    "vanilla": {
+      "name": "vanilla",
+      "prompt": "You are a coding assistant.\nTransform the following vanilla JSX code into fully equivalent Vanilla HTML file with included Javascript:\n---\n{{fileContent}}\n---\nMake sure to properly convert props, events, and use appropriate vanilla JS methods.",
+      "destinationExtension": "html",
+      "outputFolder": "transformed/vanilla/components"
+    }
+  }
+}
