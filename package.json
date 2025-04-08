@@ -5,7 +5,18 @@
   "main": "index.js",
   "scripts": {
     "gulp": "gulp",
-    "build": "gulp --base src/react/components --out intermediate --target react,vue"
+    "build": "gulp --base src/react/components --out intermediate --target react,vue",
+    "test01": "gulp --base src/react/components --out test/test01 --target react",
+    "test02": "gulp --base src/react/components --out test/test02 --target react",
+    "test03": "gulp --base src/react/components --out test/test03 --target react",
+    "test04": "gulp --base src/react/components --out test/test04 --target react",
+    "test05": "gulp --base src/react/components --out test/test05 --target react",
+    "test06": "gulp --base src/react/components --out test/test06 --target react",
+    "test07": "gulp --base src/react/components --out test/test07 --target react",
+    "test08": "gulp --base src/react/components --out test/test08 --target react",
+    "test09": "gulp --base src/react/components --out test/test09 --target react",
+    "test10": "gulp --base src/react/components --out test/test10 --target react",
+    "test": "npm run test01 && npm run test02 && npm run test03 && npm run test04 && npm run test05 && npm run test06 && npm run test07 && npm run test08 && npm run test09 && npm run test10"
   },
   "devDependencies": {
     "gulp": "^4.0.2",
