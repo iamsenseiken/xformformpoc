@@ -3,6 +3,8 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
 
 // Load transformation config
 const configPath = path.join(__dirname, 'config.json');
@@ -13,125 +15,141 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Function to transform JSX to target framework using OpenAI
-async function transformJsx(filePath, destPath, transformType) {
+// Function to transform source files to target framework
+async function transformFile(filePath, destPath, transformType) {
   try {
     // Get transformation config
     const transformConfig = config.transformations[transformType];
     if (!transformConfig) {
-      throw new Error(`Unknown transformation type: ${transformType}`);
+      console.error(`Unknown transformation type: ${transformType} for file: ${filePath}. Skipping this file.`);
+      return; // Skip this file but don't throw error to allow processing to continue
     }
 
     const fileContent = fs.readFileSync(filePath, 'utf-8');
     
-    let transformedCode;
+    let intermediateCode;
     
-    try {
-      // Replace {{fileContent}} placeholder in the prompt with actual content
-      const prompt = transformConfig.prompt.replace('{{fileContent}}', fileContent);
-      
-      const response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-      });
+    // Check if transformation is enabled
+    if (transformConfig.transform) {
+      try {
+        // Replace {{fileContent}} placeholder in the prompt with actual content
+        const prompt = transformConfig.prompt.replace('{{fileContent}}', fileContent);
+        
+        const response = await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+        });
 
-      transformedCode = response.choices[0].message.content;
-    } catch (apiError) {
-      console.error(`API Error for ${filePath}:`, apiError.message || apiError);
-      throw apiError;
+        intermediateCode = response.choices[0].message.content;
+      } catch (apiError) {
+        console.error(`API Error for ${filePath}:`, apiError.message || apiError);
+        throw apiError;
+      }
+    } else {
+      // If transform is false, pass the code through as-is
+      intermediateCode = fileContent;
     }
     
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    fs.writeFileSync(destPath, transformedCode);
-    console.log(`Transformed (${transformType}): ${filePath} -> ${destPath}`);
+    fs.writeFileSync(destPath, intermediateCode);
+    console.log(`[${transformType}] Translated: ${filePath} -> ${destPath}`);
   } catch (error) {
     console.error(`Error transforming ${filePath}:`, error);
   }
 }
 
-// Function to process files recursively
-function processFiles(srcDir, transformType) {
+// Function to copy a file verbatim
+function copyFile(srcPath, destPath, transformType) {
+  try {
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    fs.copyFileSync(srcPath, destPath);
+    console.log(`[${transformType}] Copied: ${srcPath} -> ${destPath}`);
+  } catch (error) {
+    console.error(`Error copying ${srcPath}:`, error);
+  }
+}
+
+// Function to process folders recursively
+function processFolder(basePath, srcPath, outPath, transformType) {
   const transformConfig = config.transformations[transformType];
   if (!transformConfig) {
-    console.error(`Unknown transformation type: ${transformType}`);
-    process.exit(1);
+    console.error(`Unknown transformation type: ${transformType}. Skipping this transformation.`);
+    return; // Return without processing but don't terminate the program
   }
 
-  const destDir = path.join(process.cwd(), transformConfig.outputFolder);
+  const fullSrcPath = path.join(basePath, srcPath);
+  const fullOutPath = path.join(outPath, transformConfig.outFolder, srcPath);
 
-  if (!fs.existsSync(srcDir)) {
-    console.error(`Source directory does not exist: ${srcDir}`);
-    process.exit(1);
+  if (!fs.existsSync(fullSrcPath)) {
+    console.error(`Source directory does not exist: ${fullSrcPath}`);
+    return; // Return without processing but don't terminate the program
+  }
+
+  // Check if it's a directory
+  if (!fs.statSync(fullSrcPath).isDirectory()) {
+    console.error(`Source path is not a directory: ${fullSrcPath}`);
+    return; // Return without processing but don't terminate the program
   }
 
   const processDir = (src, dest) => {
     fs.readdirSync(src, { withFileTypes: true }).forEach((entry) => {
-      const srcPath = path.join(src, entry.name);
-      const destPath = path.join(
-        dest, 
-        entry.name.replace(/\.jsx$/, `.${transformConfig.destinationExtension}`)
-      );
+      const srcEntryPath = path.join(src, entry.name);
       
       if (entry.isDirectory()) {
-        processDir(srcPath, destPath);
-      } else if (entry.name.endsWith('.jsx')) {
-        transformJsx(srcPath, destPath, transformType);
+        const destDirPath = path.join(dest, entry.name);
+        processDir(srcEntryPath, destDirPath);
+      } else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.jsx')) {
+        // Process both TSX and JSX files
+        const destEntryPath = path.join(
+          dest, 
+          entry.name.replace(/\.(tsx|jsx)$/, `.${transformConfig.destinationExtension}`)
+        );
+        transformFile(srcEntryPath, destEntryPath, transformType);
+      } else {
+        // Copy all other files verbatim
+        const destFilePath = path.join(dest, entry.name);
+        copyFile(srcEntryPath, destFilePath, transformType);
       }
     });
   };
 
-  processDir(srcDir, destDir);
+  processDir(fullSrcPath, fullOutPath);
 }
 
-// Function to process a single file
-async function processSingleFile(filePath, srcBasePath, transformType) {
-  const transformConfig = config.transformations[transformType];
-  if (!transformConfig) {
-    console.error(`Unknown transformation type: ${transformType}`);
-    process.exit(1);
-  }
-
-  if (!fs.existsSync(filePath)) {
-    console.error(`File does not exist: ${filePath}`);
-    process.exit(1);
-  }
-  
-  if (!filePath.endsWith('.jsx')) {
-    console.error(`File is not a JSX file: ${filePath}`);
-    process.exit(1);
-  }
-  
-  // Determine the relative path from srcBasePath to the file
-  const relativePath = path.relative(srcBasePath, filePath);
-  
-  // Create the destination path
-  const destDir = path.join(process.cwd(), transformConfig.outputFolder);
-  const destPath = path.join(
-    destDir, 
-    relativePath.replace(/\.jsx$/, `.${transformConfig.destinationExtension}`)
-  );
-  
-  await transformJsx(filePath, destPath, transformType);
-}
+// Parse command line arguments using yargs
+const args = yargs(hideBin(process.argv))
+  .usage('Usage: $0 --base <base-folder> --src <folder-to-process> --out <output-folder> --target <transform-type>')
+  .option('base', {
+    describe: 'The base folder to work from (e.g., "src/components")',
+    type: 'string',
+    demandOption: true
+  })
+  .option('src', {
+    describe: 'The folder to process, relative to the base (e.g., "atoms/button")',
+    type: 'string',
+    demandOption: true
+  })
+  .option('out', {
+    describe: 'The path to the output folder (e.g., "intermediate")',
+    type: 'string',
+    demandOption: true
+  })
+  .option('target', {
+    describe: 'The type of transformation to apply (e.g., "react", "vue", "vanilla")',
+    type: 'string',
+    demandOption: true
+  })
+  .help()
+  .alias('help', 'h')
+  .argv;
 
 // Main execution
-if (process.argv.length < 4) {
-  console.error('Usage: node transform.js <src-base-path> <jsx-file-path> <transform-type>');
-  console.error('   or: node transform.js <src-base-path> <transform-type>');
+const fullSrcPath = path.join(args.base, args.src);
+
+try {
+  processFolder(args.base, args.src, args.out, args.target);
+} catch (error) {
+  console.error(`Error processing directory ${fullSrcPath}: ${error.message}`);
   process.exit(1);
-}
-
-const srcBasePath = process.argv[2];
-
-// Check if we're processing a single file or a directory
-if (process.argv.length > 4) {
-  // Process single file: node transform.js <src-base-path> <jsx-file-path> <transform-type>
-  const jsxFilePath = process.argv[3];
-  const transformType = process.argv[4];
-  processSingleFile(jsxFilePath, srcBasePath, transformType);
-} else {
-  // Process all files: node transform.js <src-base-path> <transform-type>
-  const transformType = process.argv[3];
-  processFiles(srcBasePath, transformType);
 }

@@ -1,10 +1,9 @@
-```html
 <template>
   <button
     class="atom-button"
     :disabled="!enabled"
-    @click="handleClick"
-    v-bind="props"
+    @click="enabled ? onClick : undefined"
+    v-bind="$attrs"
   >
     {{ label }}
   </button>
@@ -12,7 +11,6 @@
 
 <script>
 export default {
-  name: 'Button',
   props: {
     label: {
       type: String,
@@ -25,24 +23,19 @@ export default {
     onClick: {
       type: Function,
       required: true
-    },
-    props: {
-      type: Object
     }
   },
+  mounted() {
+    // Vue equivalent of React componentDidMount
+  },
   methods: {
-    handleClick() {
-      if (this.enabled) {
-        this.onClick();
-      }
-    }
+    // Any additional methods can be defined here
   }
 };
 </script>
 
 <style scoped>
 .atom-button {
-  /* Add your Button.css styles here */
+  /* Add your CSS styles here */
 }
 </style>
-```
